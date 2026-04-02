@@ -12,6 +12,7 @@ import eu.decentsoftware.holograms.api.utils.Log;
 import eu.decentsoftware.holograms.api.utils.PAPI;
 import eu.decentsoftware.holograms.api.utils.entity.HologramEntity;
 import eu.decentsoftware.holograms.api.utils.items.HologramItem;
+import eu.decentsoftware.holograms.api.utils.renderer.VersionAwareTextHologramRenderer;
 import eu.decentsoftware.holograms.nms.api.NmsHologramPartData;
 import eu.decentsoftware.holograms.nms.api.renderer.NmsEntityHologramRenderer;
 import eu.decentsoftware.holograms.nms.api.renderer.NmsHeadHologramRenderer;
@@ -267,7 +268,7 @@ public class HologramLine extends HologramObject {
                 if (prevType != type) {
                     height = Settings.DEFAULT_HEIGHT_TEXT;
                     previousRenderer = renderer;
-                    renderer = DECENT_HOLOGRAMS.getNmsAdapter().getHologramComponentFactory().createTextRenderer();
+                    renderer = createTextRenderer();
                 }
                 text = parseCustomReplacements();
 
@@ -653,6 +654,41 @@ public class HologramLine extends HologramObject {
 
     public int[] getEntityIds() {
         return renderer.getEntityIds();
+    }
+
+    private NmsTextHologramRenderer createTextRenderer() {
+        NmsTextHologramRenderer legacyRenderer = DECENT_HOLOGRAMS.getNmsAdapter()
+                .getHologramComponentFactory()
+                .createTextRenderer();
+
+        double effectiveScale = Settings.TEXT_DISPLAY_SCALE;
+        boolean backgroundEnabled = false;
+        boolean useTextDisplayRenderer = Settings.shouldUseTextDisplayRenderer();
+        boolean fixedBillboardMode = false;
+        boolean doubleSided = false;
+        float fixedBillboardYaw = 0.0f;
+        float fixedBillboardPitch = 0.0f;
+        if (parent != null) {
+            useTextDisplayRenderer = parent.getParent().shouldUseTextDisplayRenderer();
+            effectiveScale = parent.getParent().getEffectiveTextDisplayScale();
+            backgroundEnabled = parent.getParent().isTextDisplayBackgroundEnabled();
+            fixedBillboardMode = parent.getParent().isEffectiveTextDisplayBillboardEnabled();
+            doubleSided = parent.getParent().isEffectiveTextDisplayDoubleSided();
+            fixedBillboardYaw = parent.getParent().getTextDisplayBillboardYaw();
+            fixedBillboardPitch = parent.getParent().getTextDisplayBillboardPitch();
+        }
+
+        // Version split is handled inside VersionAwareTextHologramRenderer.
+        return new VersionAwareTextHologramRenderer(
+                legacyRenderer,
+                DECENT_HOLOGRAMS.getPlugin(),
+                useTextDisplayRenderer,
+                effectiveScale,
+                backgroundEnabled,
+                doubleSided,
+                fixedBillboardMode,
+                fixedBillboardYaw,
+                fixedBillboardPitch);
     }
 
 }

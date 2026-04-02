@@ -141,6 +141,31 @@ public class Hologram extends UpdatingHologramObject implements ITicked {
             if (config.isBoolean("down-origin")) {
                 hologram.setDownOrigin(config.getBoolean("down-origin", Settings.DEFAULT_DOWN_ORIGIN));
             }
+            if (config.contains("text-display.enabled")) {
+                hologram.setTextDisplayEnabled(config.getBoolean("text-display.enabled"));
+            }
+            if (config.contains("text-display.scale")) {
+                hologram.setTextDisplayScale(config.getDouble("text-display.scale"));
+            }
+            if (config.contains("text-display.background.enabled")) {
+                hologram.setTextDisplayBackgroundEnabled(config.getBoolean("text-display.background.enabled"));
+            } else if (config.contains("text-display.background")) {
+                hologram.setTextDisplayBackgroundEnabled(config.getBoolean("text-display.background"));
+            }
+            if (config.contains("text-display.double-sided.enabled")) {
+                hologram.setTextDisplayDoubleSided(config.getBoolean("text-display.double-sided.enabled"));
+            } else if (config.contains("text-display.double-sided")) {
+                hologram.setTextDisplayDoubleSided(config.getBoolean("text-display.double-sided"));
+            }
+            if (config.contains("text-display.billboard.enabled")) {
+                hologram.setTextDisplayBillboardEnabled(config.getBoolean("text-display.billboard.enabled"));
+            }
+            if (config.contains("text-display.billboard.yaw")) {
+                hologram.setTextDisplayBillboardYaw((float) config.getDouble("text-display.billboard.yaw"));
+            }
+            if (config.contains("text-display.billboard.pitch")) {
+                hologram.setTextDisplayBillboardPitch((float) config.getDouble("text-display.billboard.pitch"));
+            }
 
             if (!config.contains("pages") && config.contains("lines")) {
                 // Old Config
@@ -252,6 +277,37 @@ public class Hologram extends UpdatingHologramObject implements ITicked {
     protected boolean alwaysFacePlayer = false;
     private final AtomicInteger tickCounter;
     private final List<NmsClickableHologramRenderer> clickableHologramRenderers = new ArrayList<>();
+    /**
+     * Optional per-hologram TextDisplay renderer toggle.
+     * If null, value falls back to global config.
+     */
+    private Boolean textDisplayEnabled = null;
+    /**
+     * Optional per-hologram text display scale override.
+     * Values <= 0 mean "inherit global config scale".
+     */
+    private double textDisplayScale = -1.0d;
+    /**
+     * Per-hologram TextDisplay background mode override.
+     */
+    private boolean textDisplayBackgroundEnabled = false;
+    /**
+     * Optional per-hologram TextDisplay double-sided override.
+     * If null, value falls back to fixed billboard behavior.
+     */
+    private Boolean textDisplayDoubleSided = null;
+    /**
+     * Per-hologram TextDisplay fixed billboard mode override.
+     */
+    private boolean textDisplayBillboardEnabled = false;
+    /**
+     * Yaw used in fixed TextDisplay billboard mode.
+     */
+    private float textDisplayBillboardYaw = 0.0f;
+    /**
+     * Pitch used in fixed TextDisplay billboard mode.
+     */
+    private float textDisplayBillboardPitch = 0.0f;
 
     /*
      *	Constructors
@@ -498,6 +554,13 @@ public class Hologram extends UpdatingHologramObject implements ITicked {
                 config.set("update-interval", updateInterval);
                 config.set("facing", facing);
                 config.set("down-origin", downOrigin);
+                config.set("text-display.enabled", textDisplayEnabled);
+                config.set("text-display.scale", hasCustomTextDisplayScale() ? textDisplayScale : null);
+                config.set("text-display.background", textDisplayBackgroundEnabled ? true : null);
+                config.set("text-display.double-sided", textDisplayDoubleSided);
+                config.set("text-display.billboard.enabled", textDisplayBillboardEnabled ? true : null);
+                config.set("text-display.billboard.yaw", textDisplayBillboardYaw != 0.0f ? textDisplayBillboardYaw : null);
+                config.set("text-display.billboard.pitch", textDisplayBillboardPitch != 0.0f ? textDisplayBillboardPitch : null);
                 config.set("pages", pages.stream().map(HologramPage::serializeToMap).collect(Collectors.toList()));
                 config.saveData();
             } catch (InterruptedException e) {
@@ -525,6 +588,13 @@ public class Hologram extends UpdatingHologramObject implements ITicked {
         hologram.setDisplayRange(this.getDisplayRange());
         hologram.setUpdateRange(this.getUpdateRange());
         hologram.setUpdateInterval(this.getUpdateInterval());
+        hologram.setTextDisplayEnabled(this.getTextDisplayEnabled());
+        hologram.setTextDisplayScale(this.getTextDisplayScale());
+        hologram.setTextDisplayBackgroundEnabled(this.isTextDisplayBackgroundEnabled());
+        hologram.setTextDisplayDoubleSided(this.getTextDisplayDoubleSided());
+        hologram.setTextDisplayBillboardEnabled(this.isTextDisplayBillboardEnabled());
+        hologram.setTextDisplayBillboardYaw(this.getTextDisplayBillboardYaw());
+        hologram.setTextDisplayBillboardPitch(this.getTextDisplayBillboardPitch());
         hologram.addFlags(this.getFlags().toArray(new EnumFlag[0]));
         hologram.setDefaultVisibleState(this.isDefaultVisibleState());
         hologram.showPlayers.addAll(this.showPlayers);
@@ -903,6 +973,120 @@ public class Hologram extends UpdatingHologramObject implements ITicked {
         this.downOrigin = downOrigin;
         this.hideClickableEntitiesAll();
         this.showClickableEntitiesAll();
+    }
+
+    /**
+     * Check whether this hologram should use TextDisplay rendering for text lines.
+     *
+     * <p>If this hologram does not define a custom value, global setting is used.</p>
+     *
+     * @return True if TextDisplay rendering is enabled for this hologram.
+     */
+    public boolean isEffectiveTextDisplayEnabled() {
+        if (textDisplayEnabled != null) {
+            return textDisplayEnabled;
+        }
+        return Settings.TEXT_DISPLAY_ENABLED;
+    }
+
+    /**
+     * Check whether this hologram can use the TextDisplay renderer.
+     *
+     * @return True if TextDisplay is enabled and supported for this hologram.
+     */
+    public boolean shouldUseTextDisplayRenderer() {
+        return isEffectiveTextDisplayEnabled() && Settings.isTextDisplaySupported();
+    }
+
+    /**
+     * Set optional per-hologram TextDisplay scale override.
+     *
+     * <p>Values <= 0 disable override and inherit {@link Settings#TEXT_DISPLAY_SCALE}.</p>
+     *
+     * @param textDisplayScale Scale override.
+     */
+    public void setTextDisplayScale(double textDisplayScale) {
+        if (textDisplayScale <= 0.0d) {
+            this.textDisplayScale = -1.0d;
+            return;
+        }
+        this.textDisplayScale = Math.min(Math.max(textDisplayScale, 0.1d), 10.0d);
+    }
+
+    /**
+     * Check if this hologram has custom TextDisplay scale.
+     *
+     * @return True if custom scale override is configured.
+     */
+    public boolean hasCustomTextDisplayScale() {
+        return textDisplayScale > 0.0d;
+    }
+
+    /**
+     * Get effective TextDisplay scale for this hologram.
+     *
+     * @return Custom scale if set, otherwise global settings scale.
+     */
+    public double getEffectiveTextDisplayScale() {
+        if (hasCustomTextDisplayScale()) {
+            return textDisplayScale;
+        }
+        return Settings.TEXT_DISPLAY_SCALE;
+    }
+
+    /**
+     * Enable or disable per-hologram fixed billboard mode for TextDisplay text lines.
+     *
+     * @param enabled True to enable, false to disable.
+     */
+    public void setTextDisplayBillboardEnabled(boolean enabled) {
+        this.textDisplayBillboardEnabled = enabled;
+    }
+
+    /**
+     * Set per-hologram fixed billboard yaw override for TextDisplay text lines.
+     *
+     * @param yaw Yaw in range -180..180.
+     */
+    public void setTextDisplayBillboardYaw(float yaw) {
+        this.textDisplayBillboardYaw = Math.max(-180.0f, Math.min(180.0f, yaw));
+    }
+
+    /**
+     * Set per-hologram fixed billboard pitch override for TextDisplay text lines.
+     *
+     * @param pitch Pitch in range -90..90.
+     */
+    public void setTextDisplayBillboardPitch(float pitch) {
+        this.textDisplayBillboardPitch = Math.max(-90.0f, Math.min(90.0f, pitch));
+    }
+
+    /**
+     * Check whether fixed billboard mode should be enabled for this hologram's text displays.
+     *
+     * @return True if fixed billboard mode should be enabled.
+     */
+    public boolean isEffectiveTextDisplayBillboardEnabled() {
+        return Settings.TEXT_DISPLAY_BILLBOARD_ENABLED && textDisplayBillboardEnabled;
+    }
+
+    /**
+     * Check whether this hologram should render TextDisplay lines as double-sided.
+     *
+     * <p>This setting only applies when fixed billboard mode is enabled for this hologram.</p>
+     * <p>When billboard mode is enabled, this falls back to global billboard double-sided setting
+     * unless explicitly overridden for this hologram.</p>
+     *
+     * @return True if TextDisplay lines should be double-sided.
+     */
+    public boolean isEffectiveTextDisplayDoubleSided() {
+        if (!isEffectiveTextDisplayBillboardEnabled()) {
+            return false;
+        }
+        if (textDisplayDoubleSided != null) {
+            return textDisplayDoubleSided;
+        }
+        return Settings.TEXT_DISPLAY_BILLBOARD_DOUBLE_SIDED;
     }
 
     /*

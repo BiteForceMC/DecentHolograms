@@ -4,6 +4,8 @@ import com.google.common.collect.ImmutableMap;
 import eu.decentsoftware.holograms.api.utils.config.CFG;
 import eu.decentsoftware.holograms.api.utils.config.FileConfig;
 import eu.decentsoftware.holograms.api.utils.config.Key;
+import eu.decentsoftware.holograms.api.utils.Log;
+import eu.decentsoftware.holograms.api.utils.renderer.TextDisplaySupport;
 import lombok.experimental.UtilityClass;
 import org.bukkit.configuration.ConfigurationSection;
 
@@ -67,6 +69,19 @@ public class Settings {
     public static boolean HOLOGRAMS_EYE_LEVEL_POSITIONING = false;
     @Key(value = "player-skin-connection-timeout", min = 1, max = 60)
     public static int PLAYER_SKIN_CONNECTION_TIMEOUT = 5;
+    @Key("text-display.enabled")
+    public static boolean TEXT_DISPLAY_ENABLED = true;
+    @Key(value = "text-display.scale", min = 0.1d, max = 10.0d)
+    public static double TEXT_DISPLAY_SCALE = 1.0d;
+    @Key("text-display.billboard.enabled")
+    public static boolean TEXT_DISPLAY_BILLBOARD_ENABLED = false;
+    @Key("text-display.billboard.double-sided")
+    public static boolean TEXT_DISPLAY_BILLBOARD_DOUBLE_SIDED = true;
+
+    /**
+     * If true, the warning about an unsupported TextDisplay API has already been logged.
+     */
+    private static boolean textDisplayUnsupportedWarningShown = false;
 
     public static Map<String, String> CUSTOM_REPLACEMENTS = ImmutableMap.<String, String>builder()
             .put("[x]", "\u2588")
@@ -90,6 +105,11 @@ public class Settings {
 
         CFG.load(DECENT_HOLOGRAMS.getPlugin(), Settings.class, config.getFile());
 
+        if (TEXT_DISPLAY_ENABLED && !TextDisplaySupport.isSupported() && !textDisplayUnsupportedWarningShown) {
+            Log.warn("TextDisplay line rendering is enabled in config, but this server version does not support Display entities. Falling back to legacy text renderer.");
+            textDisplayUnsupportedWarningShown = true;
+        }
+
         // -- Load custom replacements
         ConfigurationSection customReplacementsSection = config.getConfigurationSection("custom-replacements");
         if (customReplacementsSection != null) {
@@ -102,6 +122,24 @@ public class Settings {
             }
             CUSTOM_REPLACEMENTS = replacements;
         }
+    }
+
+    /**
+     * Check whether the modern TextDisplay API can be used on this server version.
+     *
+     * @return True if TextDisplay API is available, false otherwise.
+     */
+    public static boolean isTextDisplaySupported() {
+        return TextDisplaySupport.isSupported();
+    }
+
+    /**
+     * Check whether text lines should use TextDisplay instead of legacy packet armor stands.
+     *
+     * @return True if TextDisplay rendering should be used, false otherwise.
+     */
+    public static boolean shouldUseTextDisplayRenderer() {
+        return TEXT_DISPLAY_ENABLED && isTextDisplaySupported();
     }
 
     public static FileConfig getConfig() {

@@ -49,6 +49,45 @@ update-checker: true
 # Click cooldown in ticks
 click-cooldown: 1
 
+# TextDisplay based text line renderer settings.
+#
+# On modern Minecraft versions that support Display entities, DecentHolograms can render
+# text lines with TextDisplay entities and scale them.
+# On unsupported versions, the plugin logs a warning once and falls back to legacy text rendering.
+# You can enable/disable TextDisplay rendering per hologram:
+# text-display:
+#   enabled: false
+# You can override the scale for specific holograms in their own files using:
+# text-display:
+#   scale: <value>
+# You can also enable fixed billboard mode per hologram (when globally allowed):
+# text-display:
+#   billboard:
+#     enabled: true
+#     yaw: 90
+#     pitch: 0
+# You can configure TextDisplay background per hologram:
+# text-display:
+#   background: false
+# You can configure double-sided output per hologram:
+# text-display:
+#   double-sided: false
+# Fixed billboard mode can use a mirrored second TextDisplay so text is visible from both sides.
+text-display:
+  # Enable TextDisplay rendering for hologram text lines when supported by server version.
+  enabled: true
+  # Scale applied to TextDisplay text lines.
+  # Range: 0.1 - 10.0
+  # Default: 1.0
+  scale: 1.0
+  billboard:
+    # Global gate for per-hologram fixed billboard mode.
+    # If false, per-hologram text-display.billboard.* values are ignored.
+    enabled: false
+    # Default double-sided mode for fixed billboard TextDisplays.
+    # Set to false if mirrored text shows through nearby walls.
+    double-sided: true
+
 # Do we want to replace placeholders inside animation frames?
 #
 # WARNING! Setting this to true will have a negative impact
